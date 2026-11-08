@@ -27,9 +27,8 @@
   }
   function renderSync(st) {
     const b = $('#syncChip');
-    const icon = { saved: '✓', saving: '⟳', local: '●', offline: '⚠', error: '⚠', auth: '⚠' }[st.kind] || '●';
     b.className = 'chip sync-' + st.kind; b.title = st.msg;
-    b.innerHTML = '<span class="sync-ic">' + icon + '</span><span class="sync-tx">' + e({ saved: 'Saved to OneDrive', saving: 'Saving…', local: 'Saved on this device', offline: 'Offline – will sync', error: 'Sync failed – retry', auth: 'Sign in to OneDrive' }[st.kind] || st.msg) + '</span>';
+    b.innerHTML = '<span class="sync-ic">' + (st.kind === 'saved' ? '✓' : '⚠') + '</span><span class="sync-tx">' + (st.kind === 'saved' ? 'Saved in this browser' : 'Save failed – download backup') + '</span>';
   }
 
   /* ---------- left sidebar: countdown + daily quote ---------- */
@@ -285,16 +284,13 @@
     const S = Model.get();
     const pr = S.projects.map((p) => '<div class="srow" data-pid="' + p.id + '"><span class="pdot" style="background:' + p.color + '"></span><span class="sname">' + e(p.name) + (p.archived ? ' <small class="muted">(archived)</small>' : '') + '</span>' + UIC.swatches('c_' + p.id, p.color) + '</div>').join('') || '<p class="muted">No projects yet.</p>';
     const cats = S.categories.map((c) => '<div class="srow" data-cid="' + c.id + '"><input type="color" class="cc" value="' + c.color + '" aria-label="Colour"><input class="cn" value="' + e(c.name) + '" maxlength="40" aria-label="Category name"><small class="muted">' + U.plural(Model.categoryUsage(c.id), 'task') + '</small><button class="icon-btn" data-s="delcat" aria-label="Delete category">🗑</button></div>').join('') || '<p class="muted">No categories yet.</p>';
-    const cfgd = Sync.isConfigured(), st = Sync.status();
-    const sync = '<div class="sync-box sync-' + st.kind + '"><b>' + e(st.msg) + '</b>' + (Sync.isConnected() ? '<div class="muted">Signed in as ' + e(Sync.accountName()) + '. File: OneDrive › CharlottePhD › phd-data.json</div>' : '') + '</div>' +
-      '<div class="btn-row">' + (Sync.isConnected() ? '<button class="btn small" data-s="syncnow">Sync now / retry</button><button class="btn small" data-s="signout">Sign out of OneDrive</button>' : cfgd ? '<button class="btn small primary" data-s="signin">Sign in to OneDrive</button>' : '') + '<button class="btn small" data-s="xlsx">Export to Excel</button><button class="btn small" data-s="bkp">Download JSON backup</button><button class="btn small" data-s="imp">Restore from backup…</button><input type="file" id="impFile" accept=".json,application/json" hidden></div>' +
-      '<details class="adv"' + (cfgd ? '' : ' open') + '><summary>OneDrive connection (Microsoft Entra app)</summary><p class="muted">Register this exact redirect URI as a <b>Single-page application</b> in your Entra app: <code>' + e(Sync.redirectUri()) + '</code></p>' +
-      '<div class="field"><label>Application (client) ID</label><input id="cfgId" value="' + e(Sync.clientId()) + '" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off"></div>' +
-      '<div class="field"><label>Authority</label><input id="cfgAuth" value="' + e(Sync.authority()) + '"></div><div class="btn-row"><button class="btn small primary" data-s="savecfg">Save &amp; connect</button>' + (cfgd ? '<button class="btn small" data-s="clearcfg">Disconnect OneDrive</button>' : '') + '</div></details>';
+    const st = Store.status();
+    const sync = '<div class="sync-box sync-' + st.kind + '"><b>' + e(st.msg) + '</b><div class="muted">Your data lives in this browser on this computer. Download an Excel file or a backup whenever you like; clearing browser data or using another browser/computer starts empty unless you restore a backup.</div></div>' +
+      '<div class="btn-row"><button class="btn small primary" data-s="xlsx">Export to Excel</button><button class="btn small" data-s="bkp">Download JSON backup</button><button class="btn small" data-s="imp">Restore from backup…</button><input type="file" id="impFile" accept=".json,application/json" hidden></div>';
     return '<section class="s-sec"><h3>Project colours</h3><p class="muted">Changes update the Gantt charts immediately.</p>' + pr + '</section>' +
       '<section class="s-sec"><h3>Task categories</h3>' + cats + '<div class="srow add"><input type="color" id="newCatColor" class="cc" value="#0984E3" aria-label="New category colour"><input id="newCatName" placeholder="New category name" maxlength="40"><button class="btn small primary" data-s="addcat">Add category</button></div></section>' +
       '<section class="s-sec"><h3>Countdown</h3><div class="srow"><input type="date" id="cdDate" value="' + S.settings.countdownTarget + '"><button class="btn small primary" data-s="savecd">Save date</button><button class="btn small" data-s="resetcd">Reset to Jun 1, 2027</button></div></section>' +
-      '<section class="s-sec"><h3>Data &amp; OneDrive sync</h3>' + sync + '</section>';
+      '<section class="s-sec"><h3>Data &amp; backup</h3>' + sync + '</section>';
   }
   function openSettings() {
     settingsModal = openModal({ title: 'Settings', html: settingsHTML(), wide: true, onClose: () => { settingsModal = null; } });
@@ -323,11 +319,6 @@
       else if (a === 'xlsx') ExportXLSX();
       else if (a === 'bkp') downloadBackup();
       else if (a === 'imp') $('#impFile', m.body).click();
-      else if (a === 'syncnow') Sync.retry();
-      else if (a === 'signin') Sync.signIn();
-      else if (a === 'signout') Sync.signOut();
-      else if (a === 'savecfg') { const id = $('#cfgId', m.body).value.trim(); if (!id) return; Sync.setClientId(id, $('#cfgAuth', m.body).value); location.reload(); }
-      else if (a === 'clearcfg') { if (await confirmDialog({ title: 'Disconnect OneDrive?', message: 'Your data stays on OneDrive and on this device. Auto-sync will stop until you connect again.', confirm: 'Disconnect', danger: false })) { Sync.clearClientId(); location.reload(); } }
     });
     m.body.addEventListener('change', (ev) => {
       if (ev.target.id !== 'impFile' || !ev.target.files[0]) return;
@@ -347,10 +338,10 @@
   }
 
   /* ---------- boot ---------- */
-  async function boot() {
-    Sync.onStatus((st) => { renderSync(st); if (settingsModal) settingsModal.refresh(); });
-    renderSync(Sync.status());
-    await Sync.init();
+  function boot() {
+    Store.onStatus((st) => { renderSync(st); if (settingsModal) settingsModal.refresh(); });
+    renderSync(Store.status());
+    Store.init();
     bindMain(); bindTodo();
     Model.subscribe((kind) => {
       if (kind === 'replace' || kind === 'change') {
@@ -361,11 +352,10 @@
     window.addEventListener('hashchange', () => { renderMain(); });
     $('#btnSettings').addEventListener('click', openSettings);
     $('#btnExport').addEventListener('click', () => ExportXLSX());
-    $('#syncChip').addEventListener('click', () => { const k = Sync.status().kind; if (k === 'auth' && Sync.isConfigured()) Sync.signIn(); else if (k === 'error' || k === 'offline') Sync.retry(); else openSettings(); });
+    $('#syncChip').addEventListener('click', openSettings);
     Model.normalizeNow();
     renderAll(); tickClock(); setInterval(tickClock, 1000);
     window.PHD_READY = true;
-    await Sync.connect();
   }
   document.addEventListener('DOMContentLoaded', boot);
 })();

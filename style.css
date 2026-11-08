@@ -7,6 +7,7 @@
 *{box-sizing:border-box}
 html{scroll-padding-top:76px}
 body{margin:0;background:var(--bg);font-size:14px;line-height:1.45}
+button,input,select,textarea{font-family:inherit}
 button{font:inherit;color:inherit;cursor:pointer}
 input,select{font:inherit;color:inherit}
 a{color:var(--accent)}
@@ -16,7 +17,7 @@ h1,h2,h3{margin:0}
 /* ---------- top bar ---------- */
 .topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:18px;padding:10px 20px;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
-.brand-t{font-size:20px;font-weight:750;letter-spacing:-.02em}
+.brand-t{font-size:28px;font-weight:800;letter-spacing:-.02em}
 .logo{display:flex}
 .clock{line-height:1.2;padding-left:18px;border-left:1px solid var(--line)}
 #clockDate{font-weight:600;font-size:13px} #clockTime{color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
@@ -36,8 +37,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .chip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600}
 .chip.sync-saved{color:var(--green);border-color:#bfe6c9}.chip.sync-saving{color:var(--blue)}.chip.sync-local{color:var(--muted)}
 .chip.sync-offline,.chip.sync-error,.chip.sync-auth{color:var(--red);border-color:#f3c3ca;background:var(--red-bg)}
-.sync-saving .sync-ic{display:inline-block;animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ---------- layout ---------- */
 .layout{display:grid;grid-template-columns:250px minmax(0,1fr) 300px;gap:18px;padding:18px 20px 40px;max-width:1900px;margin:0 auto;align-items:start}
@@ -60,8 +59,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .cd-num.cd-msg{font-size:48px}
 .cd-label{margin-top:8px;color:var(--muted);font-weight:600}
 .quote{padding:16px 18px;background:#fbfbfd;box-shadow:none}
-.q-mark{font-size:36px;line-height:.6;color:#c9c3f5;font-family:Georgia,serif}
-.q-text{margin:6px 0 8px;font-family:Georgia,"Times New Roman",serif;font-size:15px;font-style:italic;color:#3a4052}
+.q-mark{font-size:36px;line-height:.6;color:#c9c3f5}
+.q-text{margin:6px 0 8px;font-size:15px;font-style:italic;color:#3a4052}
 .q-by{font-size:12.5px;color:var(--muted);font-weight:600}
 
 /* ---------- to-do (notepad) ---------- */
