@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Charlotte's PhD</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236C5CE7'/%3E%3Cpath d='M7 20l5-6 4 4 9-10' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#/" aria-label="Back to dashboard"><span class="logo"><svg viewBox="0 0 32 32" width="26" height="26"><rect width="32" height="32" rx="8" fill="#6C5CE7"/><path d="M7 20l5-6 4 4 9-10" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="brand-t">Charlotte's PhD</span></a>
+  <div class="clock"><div id="clockDate"></div><div id="clockTime"></div></div>
+  <div class="spacer"></div>
+  <button id="syncChip" class="chip" type="button"></button>
+  <button id="btnExport" class="btn small" type="button">Export Excel</button>
+  <button id="btnSettings" class="btn small" type="button">⚙ Settings</button>
+</header>
+<div class="layout">
+  <aside id="left" class="side left" aria-label="Countdown and quote"></aside>
+  <main id="main"></main>
+  <aside id="right" class="side right" aria-label="To-do list"></aside>
+</div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+<noscript>This app needs JavaScript.</noscript>
+<script src="vendor/msal-browser.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="quotes.js"></script>
+<script src="js/util.js"></script>
+<script src="js/model.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/gantt.js"></script>
+<script src="js/ui-common.js"></script>
+<script src="js/export.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
