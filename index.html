@@ -47,7 +47,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .chip.sync-offline,.chip.sync-error,.chip.sync-auth{color:var(--red);border-color:#f3c3ca;background:var(--red-bg)}
 
 /* ---------- layout ---------- */
-.layout{display:grid;grid-template-columns:250px minmax(0,1fr) 300px;gap:18px;padding:18px 20px 40px;max-width:1900px;margin:0 auto;align-items:start}
+.layout{display:grid;grid-template-columns:290px minmax(0,1fr) 300px;gap:18px;padding:18px 20px 40px;max-width:1900px;margin:0 auto;align-items:start}
 .side{position:sticky;top:74px;max-height:calc(100vh - 90px);overflow:auto;display:flex;flex-direction:column;gap:14px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
 @media (max-width:1180px){
@@ -234,6 +234,23 @@ code{background:#eef0f6;padding:1px 5px;border-radius:5px;word-break:break-all;f
 .toast{background:#1f2430;color:#fff;padding:10px 16px;border-radius:10px;display:flex;gap:14px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3)}
 .toast button{background:none;border:0;color:#b9b2ff;font-weight:700}
 
+/* ---------- Delays? panel ---------- */
+.delays{padding:14px;background:#FFF0F0;border-color:#F3C6C6}
+.delays-title{font-size:20px;color:var(--red);margin-bottom:8px;font-weight:800}
+.delays .tabs{border-bottom-color:#F3C6C6}
+.delays .tabs button{white-space:nowrap;padding:6px 8px}.delays .tabs button.on{border-color:var(--red)}
+.delays label{display:block;font-weight:600;font-size:13px;color:#000;margin:8px 0 4px}
+.delays input[type=date],.delays textarea{width:100%;background:#fff;color:#000;border:1px solid #E8B4B4;border-radius:8px;padding:7px 9px;font-family:inherit;font-size:13.5px}
+.delays textarea{resize:vertical}
+.delays .form-error{margin:6px 0}
+.delays form .btn{margin-top:4px}
+.dtable-wrap{overflow-x:auto}
+.dtable{width:100%;border-collapse:collapse;font-size:12.5px;color:#000;background:#fff;border-radius:8px;overflow:hidden}
+.dtable{table-layout:fixed}.dtable th:nth-child(1){width:23%}.dtable th:nth-child(2),.dtable th:nth-child(3){width:38.5%}
+.dtable th,.dtable td{border:1px solid #F0CFCF;padding:5px 6px;text-align:left;vertical-align:top;overflow-wrap:break-word;font-size:12px}
+.dtable th{background:#FBE0E0;font-weight:700}
+
+
 </style>
 </head>
 <body>
@@ -356,7 +373,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
       v: 1, u: NOW(),
       settings: { u: NOW(), countdownTarget: '2027-06-01' },
       categories: DEFAULT_CATS.map(([name, color]) => ({ id: U.uid(), name, color, u: NOW() })),
-      projects: [], todos: [], tomb: {},
+      projects: [], todos: [], delays: [], tomb: {},
     };
   }
 
@@ -380,7 +397,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
   function normalize(s) {
     let changed = false;
     s.settings = s.settings || { u: NOW(), countdownTarget: '2027-06-01' };
-    s.categories = s.categories || []; s.projects = s.projects || []; s.todos = s.todos || []; s.tomb = s.tomb || {};
+    s.categories = s.categories || []; s.projects = s.projects || []; s.todos = s.todos || []; s.delays = s.delays || []; s.tomb = s.tomb || {};
     // a task id must exist in exactly one goal (guards against moves merged from two devices)
     const best = new Map();
     s.projects.forEach((p) => { p.goals = p.goals || []; p.goals.forEach((g) => { g.tasks = g.tasks || []; g.tasks.forEach((t) => {
@@ -428,6 +445,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
     const leaf = (x, y) => U.clone(newer(x, y));
     R.categories = mergeList(A.categories, B.categories, tomb, aNewer, leaf);
     R.todos = mergeList(A.todos, B.todos, tomb, aNewer, leaf);
+    R.delays = mergeList(A.delays || [], B.delays || [], tomb, aNewer, leaf);
     R.projects = mergeList(A.projects, B.projects, tomb, aNewer, (pa, pb) => {
       const pw = U.clone(newer(pa, pb)); const pn = (pa.u || 0) >= (pb.u || 0);
       pw.goals = mergeList(pa.goals, pb.goals, tomb, pn, (ga, gb) => {
@@ -530,6 +548,9 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
 
     /* settings */
     setCountdown(date) { commit((s) => { s.settings.countdownTarget = date; touch(s.settings); }); },
+
+    /* delay log (separate from all progress maths) */
+    addDelay({ date, reason, instead }) { commit((s) => { s.delays.push({ id: U.uid(), date, reason, instead: instead || '', u: NOW() }); }); },
 
     /* to-do list (completely separate from progress maths) */
     addTodo(text) { commit((s) => { s.todos.push({ id: U.uid(), text, done: false, doneOn: null, created: U.today(), u: NOW() }); }); },
@@ -864,12 +885,16 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
     const todo = [['Item', 'Status', 'Added', 'Completed on']];
     S.todos.forEach((t) => todo.push([t.text, t.done ? 'Done' : 'Open', D(t.created), D(t.doneOn)]));
 
+    const dly = [['Date', 'Reason for Delay', 'What did I work on instead']];
+    S.delays.slice().sort((a, b) => b.date.localeCompare(a.date)).forEach((d) => dly.push([D(d.date), d.reason, d.instead || '']));
+
     const wb = XLSX.utils.book_new();
     const add = (name, rows, widths) => { const ws = XLSX.utils.aoa_to_sheet(rows); ws['!cols'] = widths.map((w) => ({ wch: w })); XLSX.utils.book_append_sheet(wb, ws, name); };
     add('Projects', proj, [30, 12, 22, 14, 12, 8, 10, 14]);
     add('Goals', goals, [30, 34, 12, 12, 22, 14, 12]);
     add('Tasks', tasks, [28, 30, 40, 18, 12, 12, 13, 14, 20]);
     add('To-do list', todo, [50, 10, 12, 14]);
+    add('Delays', dly, [12, 50, 50]);
     XLSX.writeFile(wb, 'Charlottes-PhD-' + U.today() + '.xlsx');
   }
   window.ExportXLSX = exportExcel;
@@ -885,7 +910,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
 
   /* ---------- device-local UI state (collapsed panels, zoom) ---------- */
   const UI_KEY = 'phd.ui.v1';
-  const UI = Object.assign({ collapsed: {}, zoom: {}, goalClosed: {}, archiveOpen: false, todoTab: 'active' }, (() => { try { return JSON.parse(localStorage.getItem(UI_KEY) || '{}'); } catch (x) { return {}; } })());
+  const UI = Object.assign({ collapsed: {}, zoom: {}, goalClosed: {}, archiveOpen: false, todoTab: 'active', delayTab: 'new' }, (() => { try { return JSON.parse(localStorage.getItem(UI_KEY) || '{}'); } catch (x) { return {}; } })());
   const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)); } catch (x) { /* ignore */ } };
   const gscroll = {};                                  // per-project horizontal scroll memory (session only)
 
@@ -928,7 +953,44 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
     const q = quoteFor(U.today());
     $('#left').innerHTML =
       '<section class="card countdown"><div class="cd-num' + (d <= 0 ? ' cd-msg' : '') + '" id="cdNum">' + big + '</div><div class="cd-label">' + e(label) + '</div></section>' +
-      (q ? '<section class="card quote"><div class="q-mark">“</div><p class="q-text">' + e(q.text) + '</p><div class="q-by">— ' + e(q.author) + (q.source ? ', <i>' + e(q.source) + '</i>' : '') + '</div></section>' : '');
+      (q ? '<section class="card quote"><div class="q-mark">“</div><p class="q-text">' + e(q.text) + '</p><div class="q-by">— ' + e(q.author) + (q.source ? ', <i>' + e(q.source) + '</i>' : '') + '</div></section>' : '') + '<div id="delaysBox"></div>';
+    renderDelays();
+  }
+
+  /* ---------- left sidebar: "Delays?" panel ---------- */
+  const dDraft = { date: '', reason: '', instead: '' };
+  function renderDelays() {
+    const box = $('#delaysBox'); if (!box) return;
+    if (!dDraft.date) dDraft.date = U.today();
+    const list = Model.get().delays.slice().sort((a, b) => b.date.localeCompare(a.date) || (b.u || 0) - (a.u || 0));
+    const tab = UI.delayTab || 'new';
+    const body = tab === 'new'
+      ? '<form id="delayForm" novalidate><label for="dDate">Date</label><input type="date" id="dDate" value="' + e(dDraft.date) + '">' +
+        '<label for="dReason">Reason for Delay</label><textarea id="dReason" rows="3" maxlength="1000">' + e(dDraft.reason) + '</textarea>' +
+        '<label for="dInstead">What did I work on instead</label><textarea id="dInstead" rows="3" maxlength="1000">' + e(dDraft.instead) + '</textarea>' +
+        '<div class="form-error" id="dErr" role="alert"></div><button class="btn danger small" type="submit">Add delay</button></form>'
+      : (list.length ? '<div class="dtable-wrap"><table class="dtable"><thead><tr><th>Date</th><th>Reason for Delay</th><th>What I worked on instead</th></tr></thead><tbody>' +
+        list.map((d) => '<tr><td>' + e(U.fmt(d.date)) + '</td><td>' + e(d.reason) + '</td><td>' + e(d.instead || '—') + '</td></tr>').join('') + '</tbody></table></div>'
+        : '<p class="muted">No delays logged yet.</p>');
+    box.innerHTML = '<section class="card delays"><h3 class="delays-title">Delays?</h3><div class="tabs" role="tablist"><button role="tab" class="' + (tab === 'new' ? 'on' : '') + '" data-dtab="new">Log a delay</button><button role="tab" class="' + (tab === 'past' ? 'on' : '') + '" data-dtab="past">Past Delays <span class="count">' + list.length + '</span></button></div>' + body + '</section>';
+  }
+  function bindDelays() {
+    const L = $('#left');
+    L.addEventListener('click', (ev) => { const t = ev.target.closest('[data-dtab]'); if (t) { UI.delayTab = t.dataset.dtab; saveUI(); renderDelays(); } });
+    L.addEventListener('input', (ev) => {
+      if (ev.target.id === 'dDate') dDraft.date = ev.target.value;
+      else if (ev.target.id === 'dReason') dDraft.reason = ev.target.value;
+      else if (ev.target.id === 'dInstead') dDraft.instead = ev.target.value;
+    });
+    L.addEventListener('submit', (ev) => {
+      if (ev.target.id !== 'delayForm') return; ev.preventDefault();
+      const err = (m) => { $('#dErr').textContent = m; };
+      if (!dDraft.date) return err('Please pick a date.');
+      if (!dDraft.reason.trim()) return err('Please fill in the reason for the delay.');
+      Model.addDelay({ date: dDraft.date, reason: dDraft.reason.trim(), instead: dDraft.instead.trim() });
+      dDraft.date = U.today(); dDraft.reason = ''; dDraft.instead = '';
+      renderDelays(); toast('Delay logged – see the Past Delays tab');
+    });
   }
 
   /* ---------- right sidebar: independent to-do list ---------- */
@@ -1221,7 +1283,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
     Store.onStatus((st) => { renderSync(st); if (settingsModal) settingsModal.refresh(); });
     renderSync(Store.status());
     Store.init();
-    bindMain(); bindTodo();
+    bindMain(); bindTodo(); bindDelays();
     Model.subscribe((kind) => {
       if (kind === 'replace' || kind === 'change') {
         if (route().page === 'project' && !Model.project(route().pid) && kind === 'change') { go('#/'); return; }
