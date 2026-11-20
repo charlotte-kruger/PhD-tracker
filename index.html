@@ -252,6 +252,18 @@ code{background:#eef0f6;padding:1px 5px;border-radius:5px;word-break:break-all;f
 .dtable th{background:#FBE0E0;font-weight:700}
 
 
+/* ---------- master gantt ---------- */
+.master-card{margin-top:6px}
+.glabels.wide{width:210px}
+.glabel.two{height:44px;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px}
+.glabel.two b{font-size:12.5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.glabel.two small{font-size:10.5px;font-weight:500;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gpdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:5px}
+.gcorner{position:relative}.cornerlab{position:absolute;left:10px;bottom:3px;font-size:11px;color:var(--muted);font-weight:600}
+.gstrip{position:absolute;left:0;right:0;border-bottom:1px solid var(--line);background:#fff}
+.gstrip .sc{position:absolute;top:2px;bottom:2px;border-radius:5px;text-align:center;font-size:11px;font-weight:700;color:#7a1020;line-height:18px;overflow:hidden}
+.gtip .tipp{opacity:.75;font-size:11.5px;margin-bottom:2px}
+
 </style>
 </head>
 <body>
@@ -606,7 +618,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
    zoom (week/month/year), tooltips, click-through, and drag-to-resize start/end dates. */
 (function () {
   const PPD = { week: 22, month: 5, year: 1.3 };     // pixels per day for each zoom level
-  const ROW = 38, H1 = 22, H2 = 22, HEAD = H1 + H2;
+  const ROW = 38, H1 = 22, H2 = 22, HEAD = H1 + H2, STRIP = 22;
   const e = U.esc;
 
   function monthStarts(rs, re) {
@@ -615,60 +627,78 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
     return out;
   }
 
-  function build(p, zoom) {
-    const ppd = PPD[zoom] || PPD.week;
+  /** rows: [{ p: project, g: goal }]; opts: { id, zoom, deadline, master } */
+  function render(rows, opts) {
+    const zoom = opts.zoom, ppd = PPD[zoom] || PPD.week, master = !!opts.master;
     const today = U.today();
     let minS = today, maxE = today;
-    p.goals.forEach((g) => { if (g.start < minS) minS = g.start; if (g.end > maxE) maxE = g.end; });
-    if (p.deadline > maxE) maxE = p.deadline;
+    rows.forEach(({ g }) => { if (g.start < minS) minS = g.start; if (g.end > maxE) maxE = g.end; });
+    if (opts.deadline && opts.deadline > maxE) maxE = opts.deadline;
     let rs = U.addDays(minS, -14);
     rs = U.addDays(rs, -((U.parse(rs).getDay() + 6) % 7));          // align to Monday
     const re = U.addDays(maxE, 28);
     const days = U.diff(rs, re) + 1, W = Math.round(days * ppd), x = (d) => U.diff(rs, d) * ppd;
-    const bodyH = Math.max(p.goals.length, 1) * ROW;
+    const rowH = master ? 44 : ROW;
+    const head = HEAD + (master ? STRIP : 0);
+    const bodyH = Math.max(rows.length, 1) * rowH;
 
-    // header tiers + grid lines
+    // header tiers + grid lines; `cells` = tier-2 intervals used for the load strip
     let t1 = '', t2 = '', lines = '';
+    const cells = [];
     const cell = (cls, l, w, label) => '<div class="' + cls + '" style="left:' + l + 'px;width:' + w + 'px"><span>' + e(label) + '</span></div>';
     const months = monthStarts(rs, re);
     const monthEnd = (m) => { const d = U.parse(m); d.setMonth(d.getMonth() + 1); return U.iso(d); };
     if (zoom === 'week') {
       months.forEach((m) => { const l = Math.max(0, x(m)), r = Math.min(W, x(monthEnd(m))); const d = U.parse(m); t1 += cell('hc1', l, r - l, U.MON[d.getMonth()] + ' ' + d.getFullYear()); });
-      for (let d = rs; d <= re; d = U.addDays(d, 7)) { t2 += cell('hc2', x(d), 7 * ppd, U.fmtShort(d)); lines += '<i class="gline" style="left:' + x(d) + 'px"></i>'; }
+      for (let d = rs; d <= re; d = U.addDays(d, 7)) { t2 += cell('hc2', x(d), 7 * ppd, U.fmtShort(d)); lines += '<i class="gline" style="left:' + x(d) + 'px"></i>'; cells.push({ l: x(d), w: 7 * ppd, from: d, to: U.addDays(d, 6) }); }
     } else {
       const years = []; months.forEach((m) => { const y = U.parse(m).getFullYear(); if (!years.includes(y)) years.push(y); });
       years.forEach((y) => { const l = Math.max(0, x(y + '-01-01')), r = Math.min(W, x((y + 1) + '-01-01')); t1 += cell('hc1', l, r - l, String(y)); });
       if (zoom === 'month') {
-        months.forEach((m) => { const l = Math.max(0, x(m)), r = Math.min(W, x(monthEnd(m))); t2 += cell('hc2', l, r - l, ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][U.parse(m).getMonth()]); lines += '<i class="gline" style="left:' + l + 'px"></i>'; });
+        months.forEach((m) => { const l = Math.max(0, x(m)), r = Math.min(W, x(monthEnd(m))); t2 += cell('hc2', l, r - l, ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][U.parse(m).getMonth()]); lines += '<i class="gline" style="left:' + l + 'px"></i>'; cells.push({ l, w: r - l, from: m, to: U.addDays(monthEnd(m), -1) }); });
       } else {
         months.filter((m) => [0, 3, 6, 9].includes(U.parse(m).getMonth())).forEach((m) => {
           const l = Math.max(0, x(m)), d = U.parse(m); const n = new Date(d.getFullYear(), d.getMonth() + 3, 1);
-          const r = Math.min(W, x(U.iso(n))); t2 += cell('hc2', l, r - l, 'Q' + (d.getMonth() / 3 + 1)); lines += '<i class="gline" style="left:' + l + 'px"></i>';
+          const r = Math.min(W, x(U.iso(n))); t2 += cell('hc2', l, r - l, 'Q' + (d.getMonth() / 3 + 1)); lines += '<i class="gline" style="left:' + l + 'px"></i>'; cells.push({ l, w: r - l, from: m, to: U.addDays(U.iso(n), -1) });
         });
       }
     }
 
+    // load strip (master chart only): how many goals overlap each week/month/quarter
+    let strip = '';
+    if (master) {
+      const counts = cells.map((c) => rows.reduce((n, { g }) => n + (g.start <= c.to && g.end >= c.from ? 1 : 0), 0));
+      const mx = Math.max(1, ...counts);
+      strip = '<div class="gstrip" style="top:' + HEAD + 'px;height:' + STRIP + 'px">' + cells.map((c, i) => counts[i]
+        ? '<div class="sc" style="left:' + c.l + 'px;width:' + c.w + 'px;background:rgba(232,56,79,' + (0.12 + 0.55 * counts[i] / mx).toFixed(2) + ')" title="' + counts[i] + ' goal' + (counts[i] === 1 ? '' : 's') + ' active · ' + U.fmtShort(c.from) + ' – ' + U.fmtShort(c.to) + '"><span>' + counts[i] + '</span></div>' : '').join('') + '</div>';
+    }
+
     let bars = '', labels = '';
-    p.goals.forEach((g, i) => {
+    rows.forEach(({ p, g }, i) => {
       const pct = Model.goalPct(g), l = x(g.start), w = Math.max(14, (U.diff(g.start, g.end) + 1) * ppd);
-      bars += '<div class="gbar" data-gid="' + g.id + '" data-s="' + g.start + '" data-e="' + g.end + '" style="left:' + l + 'px;width:' + w + 'px;top:' + (i * ROW + 8) + 'px">' +
+      const vars = '--c:' + p.color + ';--lt:' + U.lighten(p.color, 0.78) + ';--mid:' + U.lighten(p.color, 0.55) + ';';
+      bars += '<div class="gbar" data-pid="' + p.id + '" data-gid="' + g.id + '" data-s="' + g.start + '" data-e="' + g.end + '" style="' + vars + 'left:' + l + 'px;width:' + w + 'px;top:' + (i * rowH + (rowH - 22) / 2) + 'px">' +
         '<div class="gfill" style="width:' + pct + '%"></div><span class="glab">' + U.pct(pct) + '</span>' +
         '<i class="hnd hl" data-side="l" title="Drag to change start date"></i><i class="hnd hr" data-side="r" title="Drag to change deadline"></i></div>';
-      labels += '<div class="glabel" data-gid="' + g.id + '" title="' + e(g.name) + '">' + e(g.name) + '</div>';
-      lines += '<i class="growline" style="top:' + ((i + 1) * ROW) + 'px"></i>';
+      labels += master
+        ? '<div class="glabel two" style="--c:' + p.color + '" data-pid="' + p.id + '" data-gid="' + g.id + '" title="' + e(p.name + ' — ' + g.name) + '"><b>' + e(g.name) + '</b><small><i class="gpdot"></i>' + e(p.name) + '</small></div>'
+        : '<div class="glabel" data-pid="' + p.id + '" data-gid="' + g.id + '" title="' + e(g.name) + '">' + e(g.name) + '</div>';
+      lines += '<i class="growline" style="top:' + ((i + 1) * rowH) + 'px"></i>';
     });
-    if (!p.goals.length) labels = '<div class="glabel empty">No goals yet</div>';
+    if (!rows.length) labels = '<div class="glabel empty">No goals yet</div>';
 
     const tx = Math.round(x(today) + ppd / 2);
-    const dl = Math.round(x(p.deadline) + ppd);
-    const inner = '<div class="ginner" style="width:' + W + 'px;height:' + (HEAD + bodyH) + 'px">' +
-      '<div class="ghead1" style="height:' + H1 + 'px">' + t1 + '</div><div class="ghead2" style="top:' + H1 + 'px;height:' + H2 + 'px">' + t2 + '</div>' +
-      '<div class="gbody" style="top:' + HEAD + 'px;height:' + bodyH + 'px">' + lines + bars + '</div>' +
-      '<div class="gdead" style="left:' + dl + 'px" title="Project deadline: ' + U.fmt(p.deadline) + '"></div>' +
+    const dl = opts.deadline ? Math.round(x(opts.deadline) + ppd) : null;
+    const inner = '<div class="ginner" style="width:' + W + 'px;height:' + (head + bodyH) + 'px">' +
+      '<div class="ghead1" style="height:' + H1 + 'px">' + t1 + '</div><div class="ghead2" style="top:' + H1 + 'px;height:' + H2 + 'px">' + t2 + '</div>' + strip +
+      '<div class="gbody" style="top:' + head + 'px;height:' + bodyH + 'px">' + lines + bars + '</div>' +
+      (dl != null ? '<div class="gdead" style="left:' + dl + 'px" title="Project deadline: ' + U.fmt(opts.deadline) + '"></div>' : '') +
       '<div class="gtoday" style="left:' + tx + 'px" title="Today: ' + U.fmt(today) + '"><b>Today</b></div></div>';
-    return '<div class="gantt" data-pid="' + p.id + '"><div class="glabels"><div class="gcorner" style="height:' + HEAD + 'px"></div>' + labels + '</div>' +
+    return '<div class="gantt' + (master ? ' master' : '') + '" data-pid="' + opts.id + '"><div class="glabels' + (master ? ' wide' : '') + '"><div class="gcorner" style="height:' + head + 'px">' + (master ? '<span class="cornerlab">Goals active per ' + (zoom === 'week' ? 'week' : zoom === 'month' ? 'month' : 'quarter') + '</span>' : '') + '</div>' + labels + '</div>' +
       '<div class="gscroll" data-ppd="' + ppd + '" data-rs="' + rs + '" data-todayx="' + tx + '">' + inner + '</div></div>';
   }
+  const build = (p, zoom) => render(p.goals.map((g) => ({ p, g })), { id: p.id, zoom, deadline: p.deadline });
+  const buildMaster = (rows, zoom) => render(rows, { id: 'master', zoom, master: true });
 
   /* ---------- interaction (event delegation on a root element) ---------- */
   let tip = null, dragged = false;
@@ -683,7 +713,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
   function tipHTML(pid, gid, s, en) {
     const g = Model.goal(pid, gid); if (!g) return '';
     const done = g.tasks.filter((t) => t.status === 'completed').length;
-    return '<b>' + e(g.name) + '</b><div>' + U.fmt(s || g.start) + ' → ' + U.fmt(en || g.end) + ' (' + U.plural(U.diff(s || g.start, en || g.end) + 1, 'day') + ')</div>' +
+    return '<b>' + e(g.name) + '</b><div class="tipp">' + e((Model.project(pid) || {}).name || '') + '</div><div>' + U.fmt(s || g.start) + ' → ' + U.fmt(en || g.end) + ' (' + U.plural(U.diff(s || g.start, en || g.end) + 1, 'day') + ')</div>' +
       '<div>' + U.pct(Model.goalPct(g)) + ' complete · ' + done + '/' + g.tasks.length + ' tasks done</div>';
   }
 
@@ -691,18 +721,18 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
     root.addEventListener('mousemove', (ev) => {
       if (document.body.classList.contains('dragging-gantt')) return;
       const bar = ev.target.closest('.gbar'); if (!bar) { hideTip(); return; }
-      const pid = bar.closest('.gantt').dataset.pid; tooltip(tipHTML(pid, bar.dataset.gid), ev);
+      const pid = bar.dataset.pid; tooltip(tipHTML(pid, bar.dataset.gid), ev);
     });
     root.addEventListener('mouseleave', hideTip);
     root.addEventListener('click', (ev) => {
       const bar = ev.target.closest('.gbar'), lab = ev.target.closest('.glabel[data-gid]');
       const hit = bar || lab; if (!hit || dragged) return;
-      nav(hit.closest('.gantt').dataset.pid, hit.dataset.gid);
+      nav(hit.dataset.pid, hit.dataset.gid);
     });
     root.addEventListener('pointerdown', (ev) => {
       const h = ev.target.closest('.hnd'); if (!h) return;
       ev.preventDefault(); ev.stopPropagation();
-      const bar = h.closest('.gbar'), sc = h.closest('.gscroll'), pid = h.closest('.gantt').dataset.pid;
+      const bar = h.closest('.gbar'), sc = h.closest('.gscroll'), pid = bar.dataset.pid;
       const ppd = +sc.dataset.ppd, rs = sc.dataset.rs, side = h.dataset.side, x0 = ev.clientX, oS = bar.dataset.s, oE = bar.dataset.e;
       let s = oS, en = oE; dragged = false;
       h.setPointerCapture(ev.pointerId); document.body.classList.add('dragging-gantt'); bar.classList.add('active');
@@ -724,7 +754,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
     });
   }
 
-  window.Gantt = { build, bind, PPD };
+  window.Gantt = { build, buildMaster, bind, PPD };
 })();
 
 </script>
@@ -1070,6 +1100,18 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
       '<span class="hint">Drag a bar’s edge to change its dates · click a bar to open the goal</span></div>' +
       (p.goals.length ? Gantt.build(p, zoom) : '<div class="gempty">No goals yet. <button class="btn small primary" data-act="openProject" data-pid="' + p.id + '">Open project to add goals</button></div>') + '</div></section>';
   }
+  function masterCard() {
+    const rows = [];
+    Model.activeProjects().forEach((p, pi) => p.goals.forEach((g, gi) => rows.push({ p, g, pi, gi })));
+    rows.sort((a, b) => a.g.start.localeCompare(b.g.start) || a.pi - b.pi || a.gi - b.gi);
+    const closed = UI.collapsed.master, zoom = UI.zoom.master || 'week';
+    const zb = (z, l) => '<button class="seg-b' + (zoom === z ? ' on' : '') + '" data-act="zoom" data-pid="master" data-z="' + z + '">' + l + '</button>';
+    return '<section class="pcard master-card' + (closed ? ' closed' : '') + '" data-id="master" style="--c:#6C5CE7;--lt:#e9e6fb;--mid:#c9c2f5">' +
+      '<div class="phead" data-act="toggleProj" data-pid="master"><span class="chev">▾</span><div class="pt"><div class="pname">Master Gantt – all goals</div><div class="pmeta">' + U.plural(rows.length, 'goal') + ' across ' + U.plural(Model.activeProjects().length, 'active project') + ' · sorted by start date</div></div></div>' +
+      '<div class="pbody"><div class="ptool"><div class="seg-g">' + zb('week', 'Weekly') + zb('month', 'Monthly') + zb('year', 'Yearly') + '</div><button class="btn small" data-act="ganttToday" data-pid="master">Jump to today</button>' +
+      '<span class="hint">Drag a bar’s edge to change dates (updates the project too) · click a bar to open the goal</span></div>' +
+      (rows.length ? Gantt.buildMaster(rows, zoom) : '<div class="gempty">Goals from your active projects will appear here.</div>') + '</div></section>';
+  }
   function archivedRow(p) {
     const st = Model.projStats(p);
     return '<div class="arow" style="' + pvars(p) + '"><span class="pdot"></span><div class="pt"><div class="pname">' + e(p.name) + '</div><div class="pmeta">Completed ' + (p.completedOn ? U.fmt(p.completedOn) : '') + ' · ' + st.done + '/' + st.total + ' tasks · ' + U.plural(p.goals.length, 'goal') + '</div></div><b>' + U.pct(st.pct) + '</b>' +
@@ -1080,6 +1122,7 @@ window.QUOTES=[{"text": "A good plan violently executed now is better than a per
     let h = '<div class="page-head"><h1>Projects</h1><button class="btn primary" data-act="newProject">+ New project</button></div>';
     h += act.length ? '<div id="plist">' + act.map(projectCard).join('') + '</div>' :
       '<div class="card empty-state"><h3>' + (Model.get().projects.length ? 'All projects are complete 🎉' : 'Start your first project') + '</h3><p>' + (Model.get().projects.length ? 'Completed projects live in the archive below. Create a new project to keep going.' : 'Create a project, add goals with start and end dates, then break each goal into tasks. Goals appear here as bars on a Gantt chart.') + '</p><button class="btn primary" data-act="newProject">+ New project</button></div>';
+    h += masterCard();
     h += '<section class="archive"><button class="arch-head" data-act="toggleArchive"><span class="chev' + (UI.archiveOpen ? '' : ' r') + '">▾</span> Archive <span class="count">' + arch.length + '</span></button>' +
       (UI.archiveOpen ? '<div class="arch-body">' + (arch.length ? arch.map(archivedRow).join('') : '<p class="muted">Projects that reach 100% completion move here automatically. Nothing is ever deleted by archiving.</p>') + '</div>' : '') + '</section>';
     $('#main').innerHTML = h;
